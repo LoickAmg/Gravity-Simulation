@@ -1,0 +1,55 @@
+[package]
+name = "gravity-simulation"
+version = "0.1.0"
+edition = "2021"
+description = "Simulation gravitationnelle N-corps en Rust, avec plusieurs frontends de rendu et modèles d'intégration."
+
+[lib]
+name = "gravity"
+path = "src/lib.rs"
+
+[[bin]]
+name = "gravity-cli"
+path = "src/bin/cli.rs"
+required-features = ["cli"]
+
+[[bin]]
+name = "gravity-pixels"
+path = "src/bin/pixels.rs"
+required-features = ["pixels"]
+
+[[bin]]
+name = "gravity-bevy"
+path = "src/bin/bevy.rs"
+required-features = ["bevy"]
+
+[features]
+default = ["cli"]
+cli = []
+pixels = ["dep:winit", "dep:softbuffer"]
+bevy = ["dep:bevy"]
+
+[dependencies]
+# Pixels (rendu CPU 2D) — utilise winit 0.30 + softbuffer 0.4 (rwh 0.6)
+winit = { version = "0.30", optional = true }
+softbuffer = { version = "0.4", optional = true }
+
+# Bevy (rendu GPU 2D)
+bevy = { version = "0.14", optional = true, default-features = false, features = [
+    "bevy_winit",
+    "bevy_core_pipeline",
+    "bevy_pbr",
+    "bevy_sprite",
+    "bevy_ui",
+    "bevy_text",
+    "default_font",
+    "x11",
+] }
+
+[dev-dependencies]
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
