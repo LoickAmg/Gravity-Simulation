@@ -3,8 +3,6 @@
 Simulation gravitationnelle **N-corps** en Rust. Le moteur de calcul est
 indépendant de tout rendu, et trois frontends le consomment.
 
-Un projet de la [roadmap 40 projets](../roadmap-40-projets.md) (#4).
-
 ## Architecture
 
 ```
