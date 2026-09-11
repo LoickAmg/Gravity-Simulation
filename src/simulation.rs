@@ -83,6 +83,18 @@ fn acceleration(bodies: &[Body], i: usize, softening: f64) -> Vec2 {
 
 impl Simulation {
     pub fn new(config: SimulationConfig, bodies: Vec<Body>) -> Self {
+        // `dt` sert de multiplicateur dans les trois intégrateurs (jamais de
+        // diviseur), donc `dt=0`/négatif/NaN ne provoque pas de crash
+        // immédiat — mais produit silencieusement une simulation figée
+        // (dt=0), qui remonte le temps (dt<0), ou qui diverge en NaN sans
+        // jamais lever d'erreur (dt=NaN, ex. `f64::parse` accepte la chaîne
+        // "nan"). On préfère refuser franchement à la construction plutôt
+        // que de laisser tourner un état physiquement dénué de sens.
+        assert!(
+            config.dt.is_finite() && config.dt > 0.0,
+            "SimulationConfig::dt doit être fini et strictement positif (reçu : {})",
+            config.dt
+        );
         let history = vec![bodies.iter().map(|b| b.pos).collect()];
         Simulation {
             config,

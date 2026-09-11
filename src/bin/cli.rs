@@ -39,6 +39,24 @@ fn parse_integrator(s: &str) -> Option<IntegratorKind> {
     }
 }
 
+/// `None` pour tout ce qui n'est pas un nombre fini strictement positif —
+/// pas seulement les chaînes non parsables. Avant ce garde-fou, `DT` était
+/// analysé avec `.parse().ok()).unwrap_or(0.01)` : une valeur mal orthographiée
+/// retombait silencieusement sur le défaut (aucun avertissement), et une
+/// valeur parsable mais absurde (0, négative, ou "nan"/"inf", que
+/// `f64::from_str` accepte) passait telle quelle jusqu'à `Simulation::new`
+/// — soit une simulation figée ou remontant le temps sans un mot
+/// d'explication, soit un panic `assert!` bien moins clair qu'un message
+/// d'usage.
+fn parse_dt(s: &str) -> Option<f64> {
+    let dt: f64 = s.parse().ok()?;
+    if dt.is_finite() && dt > 0.0 {
+        Some(dt)
+    } else {
+        None
+    }
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
 
@@ -48,7 +66,16 @@ fn main() {
         None => Preset::SolarSystem,
     };
     let steps: u64 = args.get(1).and_then(|s| s.parse().ok()).unwrap_or(2000);
-    let dt: f64 = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(0.01);
+    let dt: f64 = match args.get(2).map(String::as_str) {
+        Some(s) => match parse_dt(s) {
+            Some(dt) => dt,
+            None => {
+                eprintln!("DT invalide : {s:?} (attendu : nombre fini strictement positif)\n");
+                usage();
+            }
+        },
+        None => 0.01,
+    };
     let integrator = match args.get(3).map(String::as_str) {
         Some(s) if parse_integrator(s).is_some() => parse_integrator(s).unwrap(),
         Some(_) => usage(),

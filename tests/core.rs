@@ -143,6 +143,29 @@ fn euler_drifts_more_than_verlet() {
     );
 }
 
+/// `dt` sert de multiplicateur (jamais de diviseur) dans les trois
+/// intégrateurs : `dt=0`/négatif/NaN ne provoquait donc pas de crash, mais
+/// une simulation silencieusement figée, remontant le temps, ou divergeant
+/// en NaN — sans jamais signaler l'erreur. `Simulation::new` doit refuser
+/// ces valeurs franchement, à la construction.
+#[test]
+#[should_panic]
+fn simulation_new_rejects_zero_dt() {
+    run(Preset::SolarSystem, 0, 0.0, IntegratorKind::Verlet);
+}
+
+#[test]
+#[should_panic]
+fn simulation_new_rejects_negative_dt() {
+    run(Preset::SolarSystem, 0, -0.01, IntegratorKind::Verlet);
+}
+
+#[test]
+#[should_panic]
+fn simulation_new_rejects_nan_dt() {
+    run(Preset::SolarSystem, 0, f64::NAN, IntegratorKind::Verlet);
+}
+
 /// La figure en 8 doit rester périodique et bornée sur plusieurs cycles.
 #[test]
 fn figure_eight_stays_bounded() {

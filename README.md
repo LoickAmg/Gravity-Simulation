@@ -51,6 +51,12 @@ prend quelques minutes, puis est mise en cache.
 | molette   | zoom, clic-glisser pour déplacer (pixels uniquement) |
 | `Échap`   | quitter |
 
+Les deux frontends graphiques affichent un panneau d'état (HUD) en haut à
+gauche — preset, intégrateur, vitesse, pause/marche, nombre de pas, énergie —
+qui se met à jour en direct à chaque touche : sans lui, une touche pressée
+par erreur (ou dont on a oublié l'effet) ne laissait sur `gravity-pixels`
+aucune trace visible (`gravity-bevy` avait déjà son propre `StatusLabel`).
+
 ## CLI
 
 ```
@@ -75,6 +81,14 @@ la dérive d'énergie `Δ` sert de vérification de stabilité de l'intégrateur
   Chenciner–Montgomery ré-échelonnées par √G.
 - Les collisions (si rayons définis) fusionnent les corps en conservant le
   momentum linéaire.
+- `dt` sert de multiplicateur (jamais de diviseur) dans les trois
+  intégrateurs : un `dt` nul, négatif ou non fini (`NaN`/`Inf`, qu'un simple
+  `f64::parse()` accepte tel quel depuis la chaîne `"nan"`) ne provoquait
+  donc pas de crash, mais une simulation silencieusement figée, remontant le
+  temps, ou divergeant sans jamais signaler l'erreur. `Simulation::new`
+  refuse maintenant ces valeurs à la construction, et `gravity-cli` valide
+  `DT` avant même de construire la simulation pour renvoyer un message
+  d'usage clair plutôt qu'un panic Rust.
 
 ## Tests & qualité
 
@@ -84,9 +98,12 @@ cargo clippy --all-features
 cargo fmt --all
 ```
 
-7 tests d'intégration sur le moteur (conservation d'énergie/momentum,
-stabilité des orbites, fusion de collisions), clippy sans warning (`-D
-warnings`, toutes features), rustfmt appliqué. CI GitHub Actions
+10 tests d'intégration sur le moteur (conservation d'énergie/momentum,
+stabilité des orbites, fusion de collisions, rejet de `dt` nul/négatif/NaN à
+la construction) + 3 tests unitaires sur le rendu du HUD de `gravity-pixels`
+(police bitmap couvrant tous les caractères réellement affichés, dessin de
+texte qui n'échappe pas hors cadre), clippy sans warning (`-D warnings`,
+toutes features), rustfmt appliqué. CI GitHub Actions
 (`.github/workflows/ci.yml`) sur push/PR : fmt, clippy, tests et build sur
 les trois features (`cli`, `pixels`, `bevy`).
 

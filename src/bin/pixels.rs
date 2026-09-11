@@ -12,6 +12,15 @@
 //! - `P`             pause
 //! - molette         zoom ; clic-glisser pan
 //! - `Échap`         quitter
+//!
+//! Un panneau d'état (HUD) en haut à gauche rappelle en permanence le preset,
+//! l'intégrateur, le multiplicateur de vitesse, l'état pause/marche, le
+//! nombre de pas et l'énergie courants — sans lui, une touche pressée par
+//! erreur (ou dont on a oublié l'effet) ne laissait aucune trace visible : le
+//! frontend Bevy a un `StatusLabel` équivalent, mais Pixels n'affichait rien
+//! du tout. Rendu via une police bitmap 3x5 maison (`glyph`), suffisante pour
+//! un HUD (majuscules, chiffres, ponctuation minimale) mais pas un rendu de
+//! texte général.
 
 use std::num::NonZeroU32;
 use std::sync::Arc;
@@ -115,7 +124,90 @@ impl App {
             draw_disc(buf, ww, wh, sx, sy, radius, 0x2E6E52);
         }
 
+        draw_hud(
+            buf,
+            ww,
+            wh,
+            self.preset,
+            self.sim.config.integrator,
+            self.speed,
+            self.paused,
+            self.sim.step_count,
+            self.sim.total_energy(),
+        );
+
         buffer.present().unwrap();
+    }
+}
+
+/// Panneau d'état en haut à gauche : preset, intégrateur, vitesse,
+/// pause/marche, nombre de pas, énergie totale. Seule confirmation visuelle
+/// qu'une touche a bien été prise en compte (voir la note en tête de
+/// module). Fonction libre (plutôt que méthode de `App`) car `App::draw`
+/// détient déjà un emprunt mutable de `self.surface` au moment de l'appel.
+#[allow(clippy::too_many_arguments)]
+fn draw_hud(
+    buf: &mut [u32],
+    ww: usize,
+    wh: usize,
+    preset: Preset,
+    integrator: IntegratorKind,
+    speed: usize,
+    paused: bool,
+    step_count: u64,
+    energy: f64,
+) {
+    const PANEL_BG: u32 = 0xE4DCC6;
+    const TEXT_COLOR: u32 = 0x33291F;
+    const SCALE: i64 = 2;
+    const LINE_HEIGHT: i64 = 7 * SCALE;
+    const MARGIN: i64 = 6;
+
+    let status = if paused { "PAUSED" } else { "RUNNING" };
+    let lines = [
+        format!("PRESET: {}", hud_preset_label(preset)),
+        format!(
+            "INTEGRATOR: {}  SPEED: {}X",
+            hud_integrator_label(integrator),
+            speed
+        ),
+        format!("{status}  STEP: {step_count}"),
+        format!("ENERGY: {energy:.3}"),
+    ];
+    let panel_w = lines.iter().map(|l| l.len()).max().unwrap_or(0) as i64 * 4 * SCALE + 8;
+    let panel_h = lines.len() as i64 * LINE_HEIGHT + 8;
+    draw_rect(buf, ww, wh, MARGIN, MARGIN, panel_w, panel_h, PANEL_BG);
+    for (i, line) in lines.iter().enumerate() {
+        draw_text(
+            buf,
+            ww,
+            wh,
+            MARGIN + 4,
+            MARGIN + 4 + i as i64 * LINE_HEIGHT,
+            line,
+            SCALE,
+            TEXT_COLOR,
+        );
+    }
+}
+
+/// Libellés HUD volontairement ASCII/majuscules — distincts de
+/// `Preset::label()`/`IntegratorKind::label()` (accents, minuscules,
+/// parenthèses) que la police bitmap 3x5 ci-dessous ne sait pas rendre.
+fn hud_preset_label(preset: Preset) -> &'static str {
+    match preset {
+        Preset::SolarSystem => "SOLAR SYSTEM",
+        Preset::Binary => "BINARY + PLANET",
+        Preset::FigureEight => "FIGURE EIGHT",
+        Preset::RandomCluster => "RANDOM CLUSTER",
+    }
+}
+
+fn hud_integrator_label(kind: IntegratorKind) -> &'static str {
+    match kind {
+        IntegratorKind::Euler => "EULER",
+        IntegratorKind::Verlet => "VERLET",
+        IntegratorKind::Leapfrog => "LEAPFROG",
     }
 }
 
@@ -294,6 +386,105 @@ fn draw_line(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+fn draw_rect(buf: &mut [u32], ww: usize, wh: usize, x0: i64, y0: i64, w: i64, h: i64, color: u32) {
+    for y in y0..y0 + h {
+        for x in x0..x0 + w {
+            put_pixel(buf, ww, wh, x, y, color);
+        }
+    }
+}
+
+/// Dessine `text` avec la police bitmap `glyph`, `scale` pixels par cellule.
+/// Chaque glyphe occupe 3 colonnes + 1 d'espacement (4·`scale` au total).
+#[allow(clippy::too_many_arguments)]
+fn draw_text(
+    buf: &mut [u32],
+    ww: usize,
+    wh: usize,
+    x0: i64,
+    y0: i64,
+    text: &str,
+    scale: i64,
+    color: u32,
+) {
+    let mut cursor_x = x0;
+    for ch in text.chars() {
+        let rows = glyph(ch);
+        for (ry, row) in rows.iter().enumerate() {
+            for cx in 0..3i64 {
+                if (row >> (2 - cx)) & 1 == 1 {
+                    draw_rect(
+                        buf,
+                        ww,
+                        wh,
+                        cursor_x + cx * scale,
+                        y0 + ry as i64 * scale,
+                        scale,
+                        scale,
+                        color,
+                    );
+                }
+            }
+        }
+        cursor_x += 4 * scale;
+    }
+}
+
+/// Police bitmap minimale 3 colonnes x 5 lignes (un `u8` par ligne, 3 bits de
+/// poids faible = pixels de gauche à droite). Couvre l'alphabet, les
+/// chiffres et une poignée de symboles — largement suffisant pour un HUD
+/// d'état, pas un rendu de texte général. Tout caractère non couvert
+/// (accents, minuscules non mappées, ponctuation rare) rend un blanc plutôt
+/// que de paniquer.
+fn glyph(c: char) -> [u8; 5] {
+    match c.to_ascii_uppercase() {
+        'A' => [0b010, 0b101, 0b111, 0b101, 0b101],
+        'B' => [0b110, 0b101, 0b110, 0b101, 0b110],
+        'C' => [0b011, 0b100, 0b100, 0b100, 0b011],
+        'D' => [0b110, 0b101, 0b101, 0b101, 0b110],
+        'E' => [0b111, 0b100, 0b110, 0b100, 0b111],
+        'F' => [0b111, 0b100, 0b110, 0b100, 0b100],
+        'G' => [0b011, 0b100, 0b101, 0b101, 0b011],
+        'H' => [0b101, 0b101, 0b111, 0b101, 0b101],
+        'I' => [0b111, 0b010, 0b010, 0b010, 0b111],
+        'J' => [0b001, 0b001, 0b001, 0b101, 0b010],
+        'K' => [0b101, 0b101, 0b110, 0b101, 0b101],
+        'L' => [0b100, 0b100, 0b100, 0b100, 0b111],
+        'M' => [0b101, 0b111, 0b111, 0b101, 0b101],
+        'N' => [0b101, 0b111, 0b111, 0b111, 0b101],
+        'O' => [0b010, 0b101, 0b101, 0b101, 0b010],
+        'P' => [0b110, 0b101, 0b110, 0b100, 0b100],
+        'Q' => [0b010, 0b101, 0b101, 0b111, 0b011],
+        'R' => [0b110, 0b101, 0b110, 0b101, 0b101],
+        'S' => [0b011, 0b100, 0b010, 0b001, 0b110],
+        'T' => [0b111, 0b010, 0b010, 0b010, 0b010],
+        'U' => [0b101, 0b101, 0b101, 0b101, 0b111],
+        'V' => [0b101, 0b101, 0b101, 0b101, 0b010],
+        'W' => [0b101, 0b101, 0b111, 0b111, 0b101],
+        'X' => [0b101, 0b101, 0b010, 0b101, 0b101],
+        'Y' => [0b101, 0b101, 0b010, 0b010, 0b010],
+        'Z' => [0b111, 0b001, 0b010, 0b100, 0b111],
+        '0' => [0b111, 0b101, 0b101, 0b101, 0b111],
+        '1' => [0b010, 0b110, 0b010, 0b010, 0b111],
+        '2' => [0b111, 0b001, 0b111, 0b100, 0b111],
+        '3' => [0b111, 0b001, 0b111, 0b001, 0b111],
+        '4' => [0b101, 0b101, 0b111, 0b001, 0b001],
+        '5' => [0b111, 0b100, 0b111, 0b001, 0b111],
+        '6' => [0b111, 0b100, 0b111, 0b101, 0b111],
+        '7' => [0b111, 0b001, 0b001, 0b001, 0b001],
+        '8' => [0b111, 0b101, 0b111, 0b101, 0b111],
+        '9' => [0b111, 0b101, 0b111, 0b001, 0b111],
+        ':' => [0b000, 0b010, 0b000, 0b010, 0b000],
+        '.' => [0b000, 0b000, 0b000, 0b000, 0b010],
+        '-' => [0b000, 0b000, 0b111, 0b000, 0b000],
+        '+' => [0b000, 0b010, 0b111, 0b010, 0b000],
+        '%' => [0b101, 0b001, 0b010, 0b100, 0b101],
+        '/' => [0b001, 0b001, 0b010, 0b100, 0b100],
+        _ => [0b000, 0b000, 0b000, 0b000, 0b000],
+    }
+}
+
 fn main() {
     let event_loop = EventLoop::new().unwrap();
     let mut app = App {
@@ -311,4 +502,56 @@ fn main() {
         height: HEIGHT,
     };
     event_loop.run_app(&mut app).unwrap();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn glyph_is_defined_for_every_character_the_hud_actually_prints() {
+        // Toutes les chaînes réellement produites par `draw_hud` (labels
+        // HUD + gabarit des lignes de format!()) : si l'une contient un
+        // caractère non couvert par `glyph`, il se rendrait en blanc
+        // silencieux plutôt que de planter — ce test l'aurait détecté ici.
+        let sample = format!(
+            "PRESET: {} INTEGRATOR: {} SPEED: 12X RUNNING PAUSED STEP: 999999 ENERGY: -3.821",
+            hud_preset_label(Preset::Binary),
+            hud_integrator_label(IntegratorKind::Leapfrog),
+        );
+        for ch in sample.chars() {
+            if ch == ' ' {
+                continue;
+            }
+            assert_ne!(
+                glyph(ch),
+                [0, 0, 0, 0, 0],
+                "caractère '{ch}' rendu en blanc (non couvert par glyph())"
+            );
+        }
+    }
+
+    #[test]
+    fn draw_text_stays_within_bounds_and_does_not_panic() {
+        // Un HUD dessiné près du bord d'une petite fenêtre ne doit pas
+        // paniquer (`put_pixel` doit absorber les coordonnées hors-cadre).
+        let ww = 20usize;
+        let wh = 20usize;
+        let mut buf = vec![0u32; ww * wh];
+        draw_text(&mut buf, ww, wh, 0, 0, "HUD TEST 123", 2, 0xFF0000);
+        draw_text(&mut buf, ww, wh, -50, -50, "OFFSCREEN", 3, 0x00FF00);
+        // Au moins un pixel du premier texte, dessiné dans le cadre, a bien
+        // été peint (sinon `draw_hud` serait un panneau invisible).
+        assert!(buf.contains(&0xFF0000));
+    }
+
+    #[test]
+    fn hud_labels_are_ascii_so_they_render_with_the_bitmap_font() {
+        for preset in Preset::ALL {
+            assert!(hud_preset_label(preset).is_ascii());
+        }
+        for kind in IntegratorKind::ALL {
+            assert!(hud_integrator_label(kind).is_ascii());
+        }
+    }
 }
