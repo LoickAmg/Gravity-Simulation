@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Dépendances système (winit/bevy sur Linux : X11, Wayland, ALSA)
+      - name: "Dépendances système (winit/bevy sur Linux : X11, Wayland, ALSA)"
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
@@ -37,7 +37,7 @@ jobs:
       - name: Lint (clippy, toutes les features)
         run: cargo clippy --all-features --all-targets -- -D warnings
 
-      - name: Tests (toutes les features : cli, pixels, bevy)
+      - name: "Tests (toutes les features : cli, pixels, bevy)"
         run: cargo test --all-features
 
       - name: Build (toutes les features)
