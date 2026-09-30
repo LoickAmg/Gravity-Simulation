@@ -99,7 +99,7 @@ impl App {
         let ww = w as usize;
 
         // Fond papier crème.
-        for pixel in buf.chunks_exact_mut(1) {
+        for pixel in buf.as_chunks_mut::<1>().0 {
             let r = (245u32 << 16) | (241u32 << 8) | 231;
             pixel[0] = r;
         }
