@@ -9,6 +9,11 @@ name = "gravity"
 path = "src/lib.rs"
 
 [[bin]]
+name = "gravity-studio"
+path = "src/bin/studio/main.rs"
+required-features = ["studio"]
+
+[[bin]]
 name = "gravity-cli"
 path = "src/bin/cli.rs"
 required-features = ["cli"]
@@ -24,10 +29,12 @@ path = "src/bin/bevy.rs"
 required-features = ["bevy"]
 
 [features]
-default = ["cli"]
+default = ["cli", "studio"]
 cli = []
 pixels = ["dep:winit", "dep:softbuffer"]
 bevy = ["dep:bevy"]
+# Gravity Studio : application interactive (egui)
+studio = ["dep:eframe"]
 
 [dependencies]
 # Pixels (rendu CPU 2D) — utilise winit 0.30 + softbuffer 0.4 (rwh 0.6)
@@ -45,8 +52,12 @@ bevy = { version = "0.14", optional = true, default-features = false, features =
     "default_font",
     "x11",
 ] }
+eframe = { version = "0.36.2", default-features = false, features = ["default_fonts", "glow"], optional = true }
 
 [dev-dependencies]
+
+[profile.release]
+opt-level = 3
 
 [profile.dev]
 opt-level = 1

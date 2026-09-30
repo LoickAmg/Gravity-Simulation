@@ -16,6 +16,7 @@ src/
     cli.rs        frontend terminal (feature: cli, défaut)
     pixels.rs     frontend 2D CPU — winit + softbuffer (feature: pixels)
     bevy.rs       frontend 2D GPU — Bevy (feature: bevy)
+    studio/       Gravity Studio — application egui (feature: studio, défaut)
 tests/
   core.rs         7 tests d'intégration (conservation, stabilité, collisions)
 ```
@@ -23,7 +24,38 @@ tests/
 Le moteur (`gravity`) n'a **aucune dépendance externe** : chaque frontend est
 un binaire séparé conditionné par une feature Cargo.
 
-## Build & run
+## Gravity Studio : l'application interactive
+
+`gravity-studio.exe` est l'application principale : une fenêtre (sans console) qui
+s'ouvre d'un double-clic. Construction :
+
+```bash
+cargo build --release --bin gravity-studio
+# → target/release/gravity-studio.exe (copiée aussi dans dist/)
+```
+
+Ce qu'on y fait :
+
+- **8 scènes** : système solaire, étoile double, « 8 » à trois corps, galaxie spirale
+  (700 étoiles), collision de galaxies, planète à anneaux perturbés par sa lune, amas
+  chaotique, bac à sable ;
+- **outils** : lancer une planète à la fronde (avec la trajectoire prévue en direct),
+  mise en orbite automatique d'un simple clic, poser une étoile ou un trou noir,
+  effacer, sélectionner et suivre un corps avec la caméra ;
+- **3 missions** : réussir une première orbite, placer une lune autour d'une planète,
+  contourner une étoile pour atteindre une cible (progression sauvegardée) ;
+- **affichage** : traînées, « tissu de l'espace-temps » creusé par les masses, halos,
+  vecteurs vitesse, zoom à la molette, déplacement au clic droit ;
+- **mesures** : énergie, dérive d'énergie selon l'intégrateur choisi (Euler contre
+  Verlet/Leapfrog), quantité de mouvement, vitesse de libération du corps sélectionné.
+
+Raccourcis : `Espace` pause, `N` pas à pas, `R` recommencer, `H` recentrer, `T` traînées,
+`G` grille. Options de lancement : `--scene 1..8`, `--mission 1..3`.
+
+Les grains de poussière des galaxies et des anneaux sont des **particules test**
+(`SimulationConfig::test_particle_mass`) : ils subissent la gravité sans l'exercer,
+ce qui rend des centaines de corps calculables en temps réel.
+## Build & run (autres interfaces)
 
 ```bash
 # CLI (par défaut)

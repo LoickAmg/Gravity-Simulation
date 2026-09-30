@@ -42,6 +42,10 @@ pub struct SimulationConfig {
     pub softening: f64,
     /// Type d'intégrateur.
     pub integrator: crate::integrator::IntegratorKind,
+    /// Les corps de masse inférieure ou égale à ce seuil sont des « particules test » :
+    /// ils subissent la gravité mais ne l'exercent pas. Une galaxie de milliers
+    /// d'étoiles devient ainsi calculable en temps réel (0 = tous les corps s'attirent).
+    pub test_particle_mass: f64,
 }
 
 impl Default for SimulationConfig {
@@ -50,6 +54,7 @@ impl Default for SimulationConfig {
             dt: 0.01,
             softening: 0.05,
             integrator: crate::integrator::IntegratorKind::Verlet,
+            test_particle_mass: 0.0,
         }
     }
 }
@@ -61,16 +66,20 @@ pub struct Simulation {
     pub bodies: Vec<Body>,
     /// Piste les positions successives pour tracer les trajectoires.
     pub history: Vec<Vec<Vec2>>,
+    /// Nombre maximal d'instantanés gardés dans `history` (0 = aucun : les
+    /// interfaces qui gèrent leurs propres traînées évitent ainsi une copie de
+    /// toutes les positions à chaque pas).
+    pub max_history: usize,
     pub step_count: u64,
 }
 
 /// Accélération gravitationnelle subie par le corps `i` de la liste, avec un
 /// offset de lissage `softening` pour éviter les dégénérescences à courte
 /// distance.
-fn acceleration(bodies: &[Body], i: usize, softening: f64) -> Vec2 {
+fn acceleration(bodies: &[Body], i: usize, softening: f64, test_mass: f64) -> Vec2 {
     let mut a = Vec2::ZERO;
     for (j, other) in bodies.iter().enumerate() {
-        if i == j {
+        if i == j || other.mass <= test_mass {
             continue;
         }
         let r = other.pos - bodies[i].pos;
@@ -100,6 +109,7 @@ impl Simulation {
             config,
             bodies,
             history,
+            max_history: 1024,
             step_count: 0,
         }
     }
@@ -108,15 +118,17 @@ impl Simulation {
     pub fn step(&mut self) {
         let mut integrator = make_integrator(self.config.integrator);
         let softening = self.config.softening;
-        let accel = |bodies: &[Body], i: usize| acceleration(bodies, i, softening);
+        let test_mass = self.config.test_particle_mass;
+        let accel = |bodies: &[Body], i: usize| acceleration(bodies, i, softening, test_mass);
         integrator.step(&mut self.bodies, self.config.dt, &accel);
 
-        self.history
-            .push(self.bodies.iter().map(|b| b.pos).collect());
-        // Garde un historique borné (évite la fuite mémoire sur les runs longs).
-        const MAX_HISTORY: usize = 1024;
-        if self.history.len() > MAX_HISTORY {
-            self.history.remove(0);
+        if self.max_history > 0 {
+            self.history
+                .push(self.bodies.iter().map(|b| b.pos).collect());
+            // Garde un historique borné (évite la fuite mémoire sur les runs longs).
+            if self.history.len() > self.max_history {
+                self.history.remove(0);
+            }
         }
         self.step_count += 1;
     }
