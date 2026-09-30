@@ -121,25 +121,42 @@ pub enum Verdict {
 
 impl Attempt {
     pub fn new(probe: u64) -> Self {
-        Attempt { probe, swept: 0.0, last_angle: None, elapsed: 0.0 }
+        Attempt {
+            probe,
+            swept: 0.0,
+            last_angle: None,
+            elapsed: 0.0,
+        }
     }
 
     /// Met à jour la tentative. `probe` = position du corps lancé (None s'il a disparu),
     /// `center` = corps de référence (étoile ou planète).
-    pub fn update(&mut self, mission: Mission, probe: Option<Vec2>, center: Option<Vec2>, dt: f64) -> Verdict {
+    pub fn update(
+        &mut self,
+        mission: Mission,
+        probe: Option<Vec2>,
+        center: Option<Vec2>,
+        dt: f64,
+    ) -> Verdict {
         self.elapsed += dt;
         let Some(p) = probe else {
             return Verdict::Failure(match mission {
-                Mission::Moon => "Collision ! La lune s'est écrasée. Réessaie un peu plus loin ou plus vite.",
+                Mission::Moon => {
+                    "Collision ! La lune s'est écrasée. Réessaie un peu plus loin ou plus vite."
+                }
                 _ => "Écrasée ! Elle est tombée sur l'étoile. Lance-la plus vite, ou de plus loin.",
             });
         };
         if let Some((target, radius)) = mission.target() {
             if (p - target).norm() <= radius {
-                return Verdict::Success("Cible atteinte ! Tu as utilisé la gravité pour contourner l'étoile.");
+                return Verdict::Success(
+                    "Cible atteinte ! Tu as utilisé la gravité pour contourner l'étoile.",
+                );
             }
             if p.norm() > 60.0 || self.elapsed > 40.0 {
-                return Verdict::Failure("Raté : la sonde s'est perdue dans l'espace. Ajuste l'angle et la force.");
+                return Verdict::Failure(
+                    "Raté : la sonde s'est perdue dans l'espace. Ajuste l'angle et la force.",
+                );
             }
             return Verdict::Running;
         }
@@ -151,7 +168,9 @@ impl Attempt {
         let limit = if mission == Mission::Moon { 5.0 } else { 60.0 };
         if dist > limit {
             return Verdict::Failure(match mission {
-                Mission::Moon => "La lune s'est échappée : elle n'est plus liée à la planète. Moins vite !",
+                Mission::Moon => {
+                    "La lune s'est échappée : elle n'est plus liée à la planète. Moins vite !"
+                }
                 _ => "Partie dans l'espace ! Elle allait trop vite pour être retenue.",
             });
         }

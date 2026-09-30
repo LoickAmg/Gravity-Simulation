@@ -98,11 +98,19 @@ impl Scene {
     pub fn description(self) -> &'static str {
         match self {
             Scene::Solar => "Une étoile et deux planètes sur des orbites presque circulaires.",
-            Scene::Binary => "Deux étoiles dansent autour de leur centre de masse ; une planète les entoure.",
-            Scene::FigureEight => "Trois corps égaux qui se poursuivent sur un « 8 » parfait (Chenciner–Montgomery).",
+            Scene::Binary => {
+                "Deux étoiles dansent autour de leur centre de masse ; une planète les entoure."
+            }
+            Scene::FigureEight => {
+                "Trois corps égaux qui se poursuivent sur un « 8 » parfait (Chenciner–Montgomery)."
+            }
             Scene::Galaxy => "Un trou noir central et 700 étoiles en rotation.",
-            Scene::GalaxyCollision => "Deux galaxies se frôlent : bras de marée et étoiles éjectées.",
-            Scene::Rings => "Une planète géante, ses anneaux de poussière et une lune qui les perturbe.",
+            Scene::GalaxyCollision => {
+                "Deux galaxies se frôlent : bras de marée et étoiles éjectées."
+            }
+            Scene::Rings => {
+                "Une planète géante, ses anneaux de poussière et une lune qui les perturbe."
+            }
             Scene::Cluster => "Douze corps au hasard : collisions, fusions et éjections.",
             Scene::Sandbox => "Une seule étoile. À toi de construire ton système !",
         }
@@ -137,10 +145,34 @@ impl Scene {
             Scene::Binary => from_preset(Preset::Binary),
             Scene::FigureEight => from_preset(Preset::FigureEight),
             Scene::Cluster => from_preset(Preset::RandomCluster),
-            Scene::Galaxy => galaxy(Vec2::ZERO, Vec2::ZERO, 700, 22.0, 1.0, Color32::from_rgb(150, 210, 255), 1),
+            Scene::Galaxy => galaxy(
+                Vec2::ZERO,
+                Vec2::ZERO,
+                700,
+                22.0,
+                1.0,
+                Color32::from_rgb(150, 210, 255),
+                1,
+            ),
             Scene::GalaxyCollision => {
-                let mut a = galaxy(Vec2::new(-26.0, -9.0), Vec2::new(2.6, 0.0), 350, 13.0, 1.0, Color32::from_rgb(140, 205, 255), 7);
-                let b = galaxy(Vec2::new(26.0, 9.0), Vec2::new(-2.6, 0.0), 350, 13.0, -1.0, Color32::from_rgb(255, 150, 210), 11);
+                let mut a = galaxy(
+                    Vec2::new(-26.0, -9.0),
+                    Vec2::new(2.6, 0.0),
+                    350,
+                    13.0,
+                    1.0,
+                    Color32::from_rgb(140, 205, 255),
+                    7,
+                );
+                let b = galaxy(
+                    Vec2::new(26.0, 9.0),
+                    Vec2::new(-2.6, 0.0),
+                    350,
+                    13.0,
+                    -1.0,
+                    Color32::from_rgb(255, 150, 210),
+                    11,
+                );
                 a.extend(b);
                 a
             }
@@ -166,13 +198,32 @@ fn from_preset(preset: Preset) -> Vec<Spawn> {
         .into_iter()
         .enumerate()
         .map(|(i, body)| {
-            let is_star = body.mass >= max_mass * 0.3 && body.mass >= 1.0 && preset != Preset::RandomCluster;
-            let name = if body.name.is_empty() { format!("corps {}", i + 1) } else { capitalize(body.name) };
-            if is_star {
-                let color = if i % 2 == 0 { Color32::from_rgb(255, 214, 130) } else { Color32::from_rgb(255, 150, 110) };
-                Spawn { body, kind: Kind::Star, color, name }
+            let is_star =
+                body.mass >= max_mass * 0.3 && body.mass >= 1.0 && preset != Preset::RandomCluster;
+            let name = if body.name.is_empty() {
+                format!("corps {}", i + 1)
             } else {
-                Spawn { body, kind: Kind::Planet, color: PLANET_COLORS[i % PLANET_COLORS.len()], name }
+                capitalize(body.name)
+            };
+            if is_star {
+                let color = if i % 2 == 0 {
+                    Color32::from_rgb(255, 214, 130)
+                } else {
+                    Color32::from_rgb(255, 150, 110)
+                };
+                Spawn {
+                    body,
+                    kind: Kind::Star,
+                    color,
+                    name,
+                }
+            } else {
+                Spawn {
+                    body,
+                    kind: Kind::Planet,
+                    color: PLANET_COLORS[i % PLANET_COLORS.len()],
+                    name,
+                }
             }
         })
         .collect()
@@ -180,7 +231,9 @@ fn from_preset(preset: Preset) -> Vec<Spawn> {
 
 fn capitalize(s: &str) -> String {
     let mut c = s.chars();
-    c.next().map(|f| f.to_uppercase().chain(c).collect()).unwrap_or_default()
+    c.next()
+        .map(|f| f.to_uppercase().chain(c).collect())
+        .unwrap_or_default()
 }
 
 /// Petit générateur pseudo-aléatoire déterministe (xorshift).
@@ -196,7 +249,15 @@ impl Rng {
 
 /// Galaxie : un trou noir central et un disque d'étoiles en orbite quasi circulaire.
 /// `spin` = +1 (sens trigonométrique) ou -1.
-fn galaxy(center: Vec2, drift: Vec2, n: usize, radius: f64, spin: f64, tint: Color32, seed: u64) -> Vec<Spawn> {
+fn galaxy(
+    center: Vec2,
+    drift: Vec2,
+    n: usize,
+    radius: f64,
+    spin: f64,
+    tint: Color32,
+    seed: u64,
+) -> Vec<Spawn> {
     let mut rng = Rng(0x9E37_79B9_7F4A_7C15 ^ seed.wrapping_mul(0x2545_F491_4F6C_DD1D));
     let m_core = 140.0;
     let m_star = 0.004;
@@ -210,7 +271,11 @@ fn galaxy(center: Vec2, drift: Vec2, n: usize, radius: f64, spin: f64, tint: Col
         // Distribution plus dense au centre, deux bras spiraux légers.
         let u = rng.next();
         let r = 1.6 + radius * u.powf(0.8);
-        let arm = if i % 2 == 0 { 0.0 } else { std::f64::consts::PI };
+        let arm = if i % 2 == 0 {
+            0.0
+        } else {
+            std::f64::consts::PI
+        };
         let theta = arm + r * 0.28 * spin + (rng.next() - 0.5) * 0.7;
         let pos = center + Vec2::new(theta.cos(), theta.sin()) * r;
         let enclosed = m_core + m_star * n as f64 * (r / (radius + 1.6)).min(1.0);
@@ -224,7 +289,12 @@ fn galaxy(center: Vec2, drift: Vec2, n: usize, radius: f64, spin: f64, tint: Col
         } else {
             tint
         };
-        out.push(Spawn { body: Body::new(pos, drift + tangent, m_star, Some(0.0), ""), kind: Kind::Dust, color, name: "étoile".into() });
+        out.push(Spawn {
+            body: Body::new(pos, drift + tangent, m_star, Some(0.0), ""),
+            kind: Kind::Dust,
+            color,
+            name: "étoile".into(),
+        });
     }
     out
 }

@@ -12,7 +12,8 @@ mod scenes;
 use std::collections::VecDeque;
 
 use eframe::egui::{
-    self, Align2, Color32, CornerRadius, FontId, Key, Margin, Pos2, Rect, RichText, Sense, Shape, Stroke, Vec2 as EVec2,
+    self, Align2, Color32, CornerRadius, FontId, Key, Margin, Pos2, Rect, RichText, Sense, Shape,
+    Stroke, Vec2 as EVec2,
 };
 use gravity::{Body, IntegratorKind, Simulation, SimulationConfig, Vec2, G};
 use missions::{Attempt, Mission, Verdict};
@@ -43,7 +44,11 @@ fn main() -> eframe::Result {
             .with_min_inner_size([980.0, 600.0]),
         ..Default::default()
     };
-    eframe::run_native("Gravity Studio", options, Box::new(|cc| Ok(Box::new(Studio::new(&cc.egui_ctx)))))
+    eframe::run_native(
+        "Gravity Studio",
+        options,
+        Box::new(|cc| Ok(Box::new(Studio::new(&cc.egui_ctx)))),
+    )
 }
 
 // ---------------------------------------------------------------------------- état
@@ -66,7 +71,13 @@ enum Tool {
 }
 
 impl Tool {
-    const ALL: [Tool; 5] = [Tool::Launch, Tool::Star, Tool::BlackHole, Tool::Erase, Tool::Select];
+    const ALL: [Tool; 5] = [
+        Tool::Launch,
+        Tool::Star,
+        Tool::BlackHole,
+        Tool::Erase,
+        Tool::Select,
+    ];
     fn label(self) -> &'static str {
         match self {
             Tool::Launch => "🚀  Lancer une planète",
@@ -148,7 +159,9 @@ impl Studio {
             seed ^= seed << 17;
             (seed % 10_000) as f32 / 10_000.0
         };
-        let stars_bg = (0..420).map(|_| (rnd(), rnd(), 0.4 + rnd() * 1.4, 0.15 + rnd() * 0.7)).collect();
+        let stars_bg = (0..420)
+            .map(|_| (rnd(), rnd(), 0.4 + rnd() * 1.4, 0.15 + rnd() * 0.7))
+            .collect();
         let mut studio = Studio {
             sim: Simulation::new(SimulationConfig::default(), Vec::new()),
             meta: Vec::new(),
@@ -174,7 +187,11 @@ impl Studio {
             grid: true,
             vectors: false,
             glow: true,
-            cam: Camera { center: Vec2::ZERO, zoom: 20.0, follow: None },
+            cam: Camera {
+                center: Vec2::ZERO,
+                zoom: 20.0,
+                follow: None,
+            },
             view_radius: 18.0,
             drag: None,
             selected: None,
@@ -188,8 +205,12 @@ impl Studio {
         for pair in args.windows(2) {
             let n: usize = pair[1].parse().unwrap_or(0);
             match pair[0].as_str() {
-                "--scene" if (1..=Scene::ALL.len()).contains(&n) => studio.load_scene(Scene::ALL[n - 1]),
-                "--mission" if (1..=Mission::ALL.len()).contains(&n) => studio.load_mission(Mission::ALL[n - 1]),
+                "--scene" if (1..=Scene::ALL.len()).contains(&n) => {
+                    studio.load_scene(Scene::ALL[n - 1])
+                }
+                "--mission" if (1..=Mission::ALL.len()).contains(&n) => {
+                    studio.load_mission(Mission::ALL[n - 1])
+                }
                 _ => {}
             }
         }
@@ -199,7 +220,12 @@ impl Studio {
     fn reset_world(&mut self, spawns: Vec<Spawn>, softening: f64, view_radius: f32) {
         let integrator = self.sim.config.integrator;
         // Les grains de poussière (masse < 0,005) subissent la gravité sans l'exercer.
-        let config = SimulationConfig { dt: DT, softening, integrator, test_particle_mass: 0.005 };
+        let config = SimulationConfig {
+            dt: DT,
+            softening,
+            integrator,
+            test_particle_mass: 0.005,
+        };
         self.sim = Simulation::new(config, Vec::new());
         self.sim.max_history = 0;
         self.meta.clear();
@@ -208,7 +234,11 @@ impl Studio {
         }
         self.time = 0.0;
         self.energy0 = self.sim.total_energy();
-        self.cam = Camera { center: Vec2::ZERO, zoom: self.cam.zoom, follow: None };
+        self.cam = Camera {
+            center: Vec2::ZERO,
+            zoom: self.cam.zoom,
+            follow: None,
+        };
         self.view_radius = view_radius;
         self.cam.zoom = 0.0; // recalculé au premier affichage
         self.selected = None;
@@ -221,7 +251,8 @@ impl Studio {
         self.mission = None;
         self.status = None;
         self.reset_world(scene.build(), scene.softening(), scene.view_radius());
-        self.trails = !matches!(scene, Scene::Galaxy | Scene::GalaxyCollision | Scene::Rings) || self.trails;
+        self.trails =
+            !matches!(scene, Scene::Galaxy | Scene::GalaxyCollision | Scene::Rings) || self.trails;
     }
 
     fn load_mission(&mut self, mission: Mission) {
@@ -230,7 +261,15 @@ impl Studio {
         self.tool = Tool::Launch;
         self.auto_orbit = false;
         self.paused = false;
-        self.reset_world(mission.scene(), 0.05, if mission == Mission::AroundTheStar { 28.0 } else { 20.0 });
+        self.reset_world(
+            mission.scene(),
+            0.05,
+            if mission == Mission::AroundTheStar {
+                28.0
+            } else {
+                20.0
+            },
+        );
         self.status = Some((mission.goal().to_string(), CYAN, f64::INFINITY));
     }
 
@@ -239,7 +278,13 @@ impl Studio {
         self.next_id += 1;
         self.sim.bodies.push(s.body);
         self.rebaseline = true;
-        self.meta.push(Meta { id, kind: s.kind, color: s.color, name: s.name, trail: VecDeque::new() });
+        self.meta.push(Meta {
+            id,
+            kind: s.kind,
+            color: s.color,
+            name: s.name,
+            trail: VecDeque::new(),
+        });
         id
     }
 
@@ -352,10 +397,24 @@ impl Studio {
         let (Some(mission), Some(attempt)) = (self.mission, self.attempt.as_mut()) else {
             return;
         };
-        let probe = self.meta.iter().position(|m| m.id == attempt.probe).map(|i| self.sim.bodies[i].pos);
+        let probe = self
+            .meta
+            .iter()
+            .position(|m| m.id == attempt.probe)
+            .map(|i| self.sim.bodies[i].pos);
         let center = match mission {
-            Mission::Moon => self.meta.iter().position(|m| m.name == "Planète bleue").map(|i| self.sim.bodies[i].pos),
-            _ => self.sim.bodies.iter().zip(&self.meta).find(|(_, m)| m.kind == Kind::Star).map(|(b, _)| b.pos),
+            Mission::Moon => self
+                .meta
+                .iter()
+                .position(|m| m.name == "Planète bleue")
+                .map(|i| self.sim.bodies[i].pos),
+            _ => self
+                .sim
+                .bodies
+                .iter()
+                .zip(&self.meta)
+                .find(|(_, m)| m.kind == Kind::Star)
+                .map(|(b, _)| b.pos),
         };
         match attempt.update(mission, probe, center, dt) {
             Verdict::Running => {}
@@ -396,9 +455,20 @@ impl Studio {
         } else {
             let n = self.meta.iter().filter(|m| m.kind == Kind::Planet).count();
             let radius = 0.18 + 0.12 * self.spawn_mass.cbrt();
-            (Kind::Planet, self.spawn_mass, radius, format!("Planète {}", n + 1), PLANET_COLORS[n % PLANET_COLORS.len()])
+            (
+                Kind::Planet,
+                self.spawn_mass,
+                radius,
+                format!("Planète {}", n + 1),
+                PLANET_COLORS[n % PLANET_COLORS.len()],
+            )
         };
-        let id = self.add(Spawn { body: Body::new(origin, velocity, mass, Some(radius), ""), kind, color, name });
+        let id = self.add(Spawn {
+            body: Body::new(origin, velocity, mass, Some(radius), ""),
+            kind,
+            color,
+            name,
+        });
         if self.mission.is_some() {
             // Une seule sonde à la fois : la précédente est retirée.
             if let Some(prev) = self.attempt.as_ref().and_then(|a| self.index_of(a.probe)) {
@@ -406,7 +476,11 @@ impl Studio {
             }
             self.attempts += 1;
             self.attempt = Some(Attempt::new(id));
-            self.status = Some((format!("Tentative n°{} en cours…", self.attempts), CYAN, f64::INFINITY));
+            self.status = Some((
+                format!("Tentative n°{} en cours…", self.attempts),
+                CYAN,
+                f64::INFINITY,
+            ));
         }
     }
 
@@ -423,9 +497,21 @@ impl Studio {
 
     /// Trajectoire prévue d'un corps lancé (avec les corps massifs qui bougent aussi).
     fn predict(&self, pos: Vec2, vel: Vec2) -> Vec<Vec2> {
-        let mut bodies: Vec<Body> = self.sim.bodies.iter().filter(|b| b.mass > 0.3).take(24).copied().collect();
+        let mut bodies: Vec<Body> = self
+            .sim
+            .bodies
+            .iter()
+            .filter(|b| b.mass > 0.3)
+            .take(24)
+            .copied()
+            .collect();
         bodies.push(Body::new(pos, vel, 0.001, Some(0.1), ""));
-        let config = SimulationConfig { dt: DT, softening: self.sim.config.softening, integrator: IntegratorKind::Verlet, test_particle_mass: 0.0 };
+        let config = SimulationConfig {
+            dt: DT,
+            softening: self.sim.config.softening,
+            integrator: IntegratorKind::Verlet,
+            test_particle_mass: 0.0,
+        };
         let mut sim = Simulation::new(config, bodies);
         sim.max_history = 0;
         let mut out = Vec::with_capacity(160);
@@ -460,12 +546,20 @@ impl eframe::App for Studio {
         egui::Panel::left("tools")
             .exact_size(300.0)
             .resizable(false)
-            .frame(egui::Frame::new().fill(PANEL).inner_margin(Margin::same(18)))
+            .frame(
+                egui::Frame::new()
+                    .fill(PANEL)
+                    .inner_margin(Margin::same(18)),
+            )
             .show(ui, |ui| self.left_panel(ui));
         egui::Panel::right("sim")
             .exact_size(280.0)
             .resizable(false)
-            .frame(egui::Frame::new().fill(PANEL).inner_margin(Margin::same(18)))
+            .frame(
+                egui::Frame::new()
+                    .fill(PANEL)
+                    .inner_margin(Margin::same(18)),
+            )
             .show(ui, |ui| self.right_panel(ui));
         egui::CentralPanel::no_frame().show(ui, |ui| self.canvas(ui));
         ctx.request_repaint();
@@ -510,79 +604,121 @@ impl Studio {
         ui.label(RichText::new("Bac à sable de la gravité").color(DIM));
         ui.add_space(14.0);
 
-        egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-            let full = ui.available_width() - 6.0;
-            section(ui, "SCÈNES");
-            egui::Grid::new("scenes").num_columns(2).spacing([6.0, 6.0]).show(ui, |ui| {
-                for (i, scene) in Scene::ALL.iter().enumerate() {
-                    let on = self.mission.is_none() && self.scene == *scene;
-                    let text = RichText::new(format!("{}  {}", scene.icon(), scene.short_label())).size(13.0);
-                    let button = egui::Button::new(text).min_size(EVec2::new((full - 6.0) / 2.0, 34.0)).selected(on);
-                    if ui.add(button).on_hover_text(scene.description()).clicked() {
-                        self.load_scene(*scene);
-                    }
-                    if i % 2 == 1 {
-                        ui.end_row();
-                    }
-                }
-            });
+        egui::ScrollArea::vertical()
+            .auto_shrink([false, false])
+            .show(ui, |ui| {
+                let full = ui.available_width() - 6.0;
+                section(ui, "SCÈNES");
+                egui::Grid::new("scenes")
+                    .num_columns(2)
+                    .spacing([6.0, 6.0])
+                    .show(ui, |ui| {
+                        for (i, scene) in Scene::ALL.iter().enumerate() {
+                            let on = self.mission.is_none() && self.scene == *scene;
+                            let text =
+                                RichText::new(format!("{}  {}", scene.icon(), scene.short_label()))
+                                    .size(13.0);
+                            let button = egui::Button::new(text)
+                                .min_size(EVec2::new((full - 6.0) / 2.0, 34.0))
+                                .selected(on);
+                            if ui.add(button).on_hover_text(scene.description()).clicked() {
+                                self.load_scene(*scene);
+                            }
+                            if i % 2 == 1 {
+                                ui.end_row();
+                            }
+                        }
+                    });
 
-            ui.add_space(12.0);
-            section(ui, "OUTILS");
-            for tool in Tool::ALL {
-                let on = self.tool == tool;
-                let button = egui::Button::new(RichText::new(tool.label()).size(14.0))
-                    .min_size(EVec2::new(full, 32.0))
-                    .selected(on);
-                if ui.add(button).clicked() {
-                    self.tool = tool;
+                ui.add_space(12.0);
+                section(ui, "OUTILS");
+                for tool in Tool::ALL {
+                    let on = self.tool == tool;
+                    let button = egui::Button::new(RichText::new(tool.label()).size(14.0))
+                        .min_size(EVec2::new(full, 32.0))
+                        .selected(on);
+                    if ui.add(button).clicked() {
+                        self.tool = tool;
+                    }
                 }
-            }
-            ui.add_space(6.0);
-            ui.label(RichText::new(self.tool.hint()).size(12.5).color(DIM));
-            if self.tool == Tool::Launch && self.mission.is_none() {
                 ui.add_space(6.0);
-                ui.add(egui::Slider::new(&mut self.spawn_mass, 0.01..=30.0).logarithmic(true).text("masse"));
-                ui.checkbox(&mut self.auto_orbit, "Clic simple : orbite auto");
-            }
-
-            ui.add_space(12.0);
-            section(ui, "MISSIONS");
-            for (i, mission) in Mission::ALL.iter().enumerate() {
-                let done = self.completed[i];
-                let on = self.mission == Some(*mission);
-                let label = format!("{}  {}", if done { "✅" } else { "🎯" }, mission.title());
-                let button = egui::Button::new(RichText::new(label).size(14.0))
-                    .min_size(EVec2::new(full, 34.0))
-                    .selected(on);
-                if ui.add(button).on_hover_text(mission.goal()).clicked() {
-                    self.load_mission(*mission);
+                ui.label(RichText::new(self.tool.hint()).size(12.5).color(DIM));
+                if self.tool == Tool::Launch && self.mission.is_none() {
+                    ui.add_space(6.0);
+                    ui.add(
+                        egui::Slider::new(&mut self.spawn_mass, 0.01..=30.0)
+                            .logarithmic(true)
+                            .text("masse"),
+                    );
+                    ui.checkbox(&mut self.auto_orbit, "Clic simple : orbite auto");
                 }
-            }
-            let done = self.completed.iter().filter(|d| **d).count();
-            ui.label(RichText::new(format!("{done} / 3 missions réussies")).size(12.5).color(DIM));
-        });
+
+                ui.add_space(12.0);
+                section(ui, "MISSIONS");
+                for (i, mission) in Mission::ALL.iter().enumerate() {
+                    let done = self.completed[i];
+                    let on = self.mission == Some(*mission);
+                    let label = format!("{}  {}", if done { "✅" } else { "🎯" }, mission.title());
+                    let button = egui::Button::new(RichText::new(label).size(14.0))
+                        .min_size(EVec2::new(full, 34.0))
+                        .selected(on);
+                    if ui.add(button).on_hover_text(mission.goal()).clicked() {
+                        self.load_mission(*mission);
+                    }
+                }
+                let done = self.completed.iter().filter(|d| **d).count();
+                ui.label(
+                    RichText::new(format!("{done} / 3 missions réussies"))
+                        .size(12.5)
+                        .color(DIM),
+                );
+            });
     }
 
     fn right_panel(&mut self, ui: &mut egui::Ui) {
         section(ui, "SIMULATION");
         ui.horizontal(|ui| {
-            let label = if self.paused { "▶  Reprendre" } else { "⏸  Pause" };
-            if ui.add(egui::Button::new(RichText::new(label).size(14.0)).min_size(EVec2::new(120.0, 32.0))).clicked() {
+            let label = if self.paused {
+                "▶  Reprendre"
+            } else {
+                "⏸  Pause"
+            };
+            if ui
+                .add(
+                    egui::Button::new(RichText::new(label).size(14.0))
+                        .min_size(EVec2::new(120.0, 32.0)),
+                )
+                .clicked()
+            {
                 self.paused = !self.paused;
             }
-            if ui.add_enabled(self.paused, egui::Button::new("⏭  Pas").min_size(EVec2::new(60.0, 32.0))).clicked() {
+            if ui
+                .add_enabled(
+                    self.paused,
+                    egui::Button::new("⏭  Pas").min_size(EVec2::new(60.0, 32.0)),
+                )
+                .clicked()
+            {
                 self.sim.step();
                 self.time += DT;
             }
-            if ui.add(egui::Button::new("⟲").min_size(EVec2::new(36.0, 32.0))).on_hover_text("Recommencer (R)").clicked() {
+            if ui
+                .add(egui::Button::new("⟲").min_size(EVec2::new(36.0, 32.0)))
+                .on_hover_text("Recommencer (R)")
+                .clicked()
+            {
                 match self.mission {
                     Some(m) => self.load_mission(m),
                     None => self.load_scene(self.scene),
                 }
             }
         });
-        ui.add(egui::Slider::new(&mut self.speed, 0.1..=8.0).logarithmic(true).text("vitesse").suffix("×"));
+        ui.add(
+            egui::Slider::new(&mut self.speed, 0.1..=8.0)
+                .logarithmic(true)
+                .text("vitesse")
+                .suffix("×"),
+        );
 
         ui.add_space(6.0);
         ui.label(RichText::new("Méthode de calcul").color(DIM).size(12.5));
@@ -601,7 +737,9 @@ impl Studio {
         }
         ui.label(
             RichText::new(match kind {
-                IntegratorKind::Euler => "Simple mais imprécis : l'énergie dérive, les orbites s'écartent peu à peu.",
+                IntegratorKind::Euler => {
+                    "Simple mais imprécis : l'énergie dérive, les orbites s'écartent peu à peu."
+                }
                 _ => "Symplectique : l'énergie reste stable, les orbites se referment.",
             })
             .size(12.0)
@@ -625,50 +763,87 @@ impl Studio {
         if std::mem::take(&mut self.rebaseline) {
             self.energy0 = e;
         }
-        let drift = if self.energy0.abs() > 1e-9 { (e - self.energy0) / self.energy0.abs() * 100.0 } else { 0.0 };
+        let drift = if self.energy0.abs() > 1e-9 {
+            (e - self.energy0) / self.energy0.abs() * 100.0
+        } else {
+            0.0
+        };
         stat(ui, "Corps", format!("{}", self.sim.bodies.len()));
         stat(ui, "Temps", format!("{:.1}", self.time));
         stat(ui, "Énergie totale", format!("{e:.1}"));
-        let drift_color = if drift.abs() < 1.0 { GREEN } else if drift.abs() < 10.0 { GOLD } else { RED };
+        let drift_color = if drift.abs() < 1.0 {
+            GREEN
+        } else if drift.abs() < 10.0 {
+            GOLD
+        } else {
+            RED
+        };
         ui.horizontal(|ui| {
             ui.label(RichText::new("Dérive d'énergie").color(DIM));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.label(RichText::new(format!("{drift:+.2} %")).color(drift_color).strong());
+                ui.label(
+                    RichText::new(format!("{drift:+.2} %"))
+                        .color(drift_color)
+                        .strong(),
+                );
             });
         });
         let p = self.sim.total_momentum();
         stat(ui, "Quantité de mouvement", format!("{:.2}", p.norm()));
-        stat(ui, "Images / s", format!("{:.0}", 1.0 / self.frame_time.max(1e-3)));
+        stat(
+            ui,
+            "Images / s",
+            format!("{:.0}", 1.0 / self.frame_time.max(1e-3)),
+        );
 
         if let Some(i) = self.selected.and_then(|id| self.index_of(id)) {
             ui.add_space(12.0);
             section(ui, "CORPS SÉLECTIONNÉ");
             let b = self.sim.bodies[i];
-            let (name, color, id) = (self.meta[i].name.clone(), self.meta[i].color, self.meta[i].id);
-            egui::Frame::new().fill(PANEL_2).corner_radius(CornerRadius::same(10)).inner_margin(Margin::same(10)).show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    let (r, _) = ui.allocate_exact_size(EVec2::splat(14.0), Sense::hover());
-                    ui.painter().circle_filled(r.center(), 6.0, color);
-                    ui.label(RichText::new(&name).strong().color(TEXT));
-                });
-                stat(ui, "Masse", format!("{:.3}", b.mass));
-                stat(ui, "Vitesse", format!("{:.2}", b.vel.norm()));
-                if let Some(d) = self.dominant(b.pos).filter(|d| *d != i) {
-                    let r = (b.pos - self.sim.bodies[d].pos).norm();
-                    let v_esc = (2.0 * G * self.sim.bodies[d].mass / r).sqrt();
-                    stat(ui, "Distance à l'astre", format!("{r:.2}"));
-                    let bound = (b.vel - self.sim.bodies[d].vel).norm() < v_esc;
-                    stat(ui, "Vitesse de libération", format!("{v_esc:.2}"));
-                    ui.label(
-                        RichText::new(if bound { "Lié : en orbite" } else { "Libre : il s'échappe" })
+            let (name, color, id) = (
+                self.meta[i].name.clone(),
+                self.meta[i].color,
+                self.meta[i].id,
+            );
+            egui::Frame::new()
+                .fill(PANEL_2)
+                .corner_radius(CornerRadius::same(10))
+                .inner_margin(Margin::same(10))
+                .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        let (r, _) = ui.allocate_exact_size(EVec2::splat(14.0), Sense::hover());
+                        ui.painter().circle_filled(r.center(), 6.0, color);
+                        ui.label(RichText::new(&name).strong().color(TEXT));
+                    });
+                    stat(ui, "Masse", format!("{:.3}", b.mass));
+                    stat(ui, "Vitesse", format!("{:.2}", b.vel.norm()));
+                    if let Some(d) = self.dominant(b.pos).filter(|d| *d != i) {
+                        let r = (b.pos - self.sim.bodies[d].pos).norm();
+                        let v_esc = (2.0 * G * self.sim.bodies[d].mass / r).sqrt();
+                        stat(ui, "Distance à l'astre", format!("{r:.2}"));
+                        let bound = (b.vel - self.sim.bodies[d].vel).norm() < v_esc;
+                        stat(ui, "Vitesse de libération", format!("{v_esc:.2}"));
+                        ui.label(
+                            RichText::new(if bound {
+                                "Lié : en orbite"
+                            } else {
+                                "Libre : il s'échappe"
+                            })
                             .color(if bound { GREEN } else { GOLD }),
-                    );
-                }
-                let following = self.cam.follow == Some(id);
-                if ui.button(if following { "Ne plus suivre" } else { "Suivre avec la caméra" }).clicked() {
-                    self.cam.follow = if following { None } else { Some(id) };
-                }
-            });
+                        );
+                    }
+                    let following = self.cam.follow == Some(id);
+                    if ui
+                        .button(if following {
+                            "Ne plus suivre"
+                        } else {
+                            "Suivre avec la caméra"
+                        })
+                        .clicked()
+                    {
+                        self.cam.follow = if following { None } else { Some(id) };
+                    }
+                });
         }
 
         ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
@@ -690,8 +865,18 @@ impl Studio {
         let center = rect.center();
         let zoom = self.cam.zoom;
         let cam = self.cam.center;
-        let to_screen = |p: Vec2| Pos2::new(center.x + ((p.x - cam.x) as f32) * zoom, center.y - ((p.y - cam.y) as f32) * zoom);
-        let to_world = |s: Pos2| Vec2::new(cam.x + ((s.x - center.x) / zoom) as f64, cam.y - ((s.y - center.y) / zoom) as f64);
+        let to_screen = |p: Vec2| {
+            Pos2::new(
+                center.x + ((p.x - cam.x) as f32) * zoom,
+                center.y - ((p.y - cam.y) as f32) * zoom,
+            )
+        };
+        let to_world = |s: Pos2| {
+            Vec2::new(
+                cam.x + ((s.x - center.x) / zoom) as f64,
+                cam.y - ((s.y - center.y) / zoom) as f64,
+            )
+        };
 
         // --- entrées : zoom, déplacement, outils
         if response.hovered() {
@@ -701,25 +886,38 @@ impl Studio {
                     let before = to_world(mouse);
                     self.cam.zoom = (self.cam.zoom * (scroll * 0.0018).exp()).clamp(0.5, 600.0);
                     let z = self.cam.zoom;
-                    let after = Vec2::new(self.cam.center.x + ((mouse.x - center.x) / z) as f64, self.cam.center.y - ((mouse.y - center.y) / z) as f64);
+                    let after = Vec2::new(
+                        self.cam.center.x + ((mouse.x - center.x) / z) as f64,
+                        self.cam.center.y - ((mouse.y - center.y) / z) as f64,
+                    );
                     if self.cam.follow.is_none() {
-                        self.cam.center = self.cam.center + (before - after);
+                        self.cam.center += before - after;
                     }
                 }
             }
         }
-        if response.dragged_by(egui::PointerButton::Secondary) || response.dragged_by(egui::PointerButton::Middle) {
+        if response.dragged_by(egui::PointerButton::Secondary)
+            || response.dragged_by(egui::PointerButton::Middle)
+        {
             let d = response.drag_delta();
             self.cam.follow = None;
-            self.cam.center = self.cam.center + Vec2::new((-d.x / zoom) as f64, (d.y / zoom) as f64);
+            self.cam.center += Vec2::new((-d.x / zoom) as f64, (d.y / zoom) as f64);
         }
         let pad = self.mission.and_then(|m| m.launch_pad());
         if self.tool == Tool::Launch {
             if response.drag_started_by(egui::PointerButton::Primary) {
-                self.drag = Some(pad.unwrap_or_else(|| response.interact_pointer_pos().map(to_world).unwrap_or(Vec2::ZERO)));
+                self.drag = Some(pad.unwrap_or_else(|| {
+                    response
+                        .interact_pointer_pos()
+                        .map(to_world)
+                        .unwrap_or(Vec2::ZERO)
+                }));
             }
             if response.drag_stopped_by(egui::PointerButton::Primary) {
-                if let (Some(from), Some(to)) = (self.drag.take(), response.interact_pointer_pos().map(to_world)) {
+                if let (Some(from), Some(to)) = (
+                    self.drag.take(),
+                    response.interact_pointer_pos().map(to_world),
+                ) {
                     let v = self.sling_velocity(from, to);
                     self.launch(from, v);
                 }
@@ -743,11 +941,17 @@ impl Studio {
         painter.rect_filled(rect, CornerRadius::ZERO, BG);
         let t = self.time as f32;
         for (x, y, size, bright) in &self.stars_bg {
-            let px = rect.left() + (x * rect.width() - (cam.x as f32) * 0.6).rem_euclid(rect.width());
-            let py = rect.top() + (y * rect.height() + (cam.y as f32) * 0.6).rem_euclid(rect.height());
+            let px =
+                rect.left() + (x * rect.width() - (cam.x as f32) * 0.6).rem_euclid(rect.width());
+            let py =
+                rect.top() + (y * rect.height() + (cam.y as f32) * 0.6).rem_euclid(rect.height());
             let twinkle = 0.75 + 0.25 * ((t * 1.3 + x * 40.0).sin());
             let a = (bright * twinkle * 255.0) as u8;
-            painter.circle_filled(Pos2::new(px, py), *size * 0.6, Color32::from_rgba_unmultiplied(200, 210, 255, a));
+            painter.circle_filled(
+                Pos2::new(px, py),
+                *size * 0.6,
+                Color32::from_rgba_unmultiplied(200, 210, 255, a),
+            );
         }
 
         if self.grid {
@@ -759,14 +963,30 @@ impl Studio {
             if let Some((target, r)) = m.target() {
                 let c = to_screen(target);
                 let pulse = 1.0 + 0.08 * (t * 3.0).sin();
-                painter.circle_filled(c, r as f32 * zoom * pulse, Color32::from_rgba_unmultiplied(114, 239, 150, 40));
+                painter.circle_filled(
+                    c,
+                    r as f32 * zoom * pulse,
+                    Color32::from_rgba_unmultiplied(114, 239, 150, 40),
+                );
                 painter.circle_stroke(c, r as f32 * zoom * pulse, Stroke::new(2.0, GREEN));
-                painter.text(c, Align2::CENTER_CENTER, "CIBLE", FontId::proportional(13.0), GREEN);
+                painter.text(
+                    c,
+                    Align2::CENTER_CENTER,
+                    "CIBLE",
+                    FontId::proportional(13.0),
+                    GREEN,
+                );
             }
             if let Some(p) = pad {
                 let c = to_screen(p);
                 painter.circle_stroke(c, 14.0, Stroke::new(2.0, GOLD));
-                painter.text(c + EVec2::new(0.0, 26.0), Align2::CENTER_CENTER, "BASE", FontId::proportional(12.0), GOLD);
+                painter.text(
+                    c + EVec2::new(0.0, 26.0),
+                    Align2::CENTER_CENTER,
+                    "BASE",
+                    FontId::proportional(12.0),
+                    GOLD,
+                );
             }
         }
 
@@ -807,13 +1027,21 @@ impl Studio {
                             painter.circle_filled(p, r * k, with_alpha(m.color, a));
                         }
                     }
-                    painter.circle_stroke(p, r * 1.35, Stroke::new(r * 0.35, Color32::from_rgb(255, 170, 80)));
+                    painter.circle_stroke(
+                        p,
+                        r * 1.35,
+                        Stroke::new(r * 0.35, Color32::from_rgb(255, 170, 80)),
+                    );
                     painter.circle_filled(p, r, Color32::BLACK);
                 }
                 Kind::Star => {
                     if self.glow {
                         for (k, a) in [(5.0, 10u8), (3.2, 22), (2.0, 55), (1.4, 110)] {
-                            painter.circle_filled(p, r * k, with_alpha(Color32::from_rgb(255, 170, 70), a));
+                            painter.circle_filled(
+                                p,
+                                r * k,
+                                with_alpha(Color32::from_rgb(255, 170, 70), a),
+                            );
                         }
                     }
                     painter.circle_filled(p, r, m.color);
@@ -826,7 +1054,11 @@ impl Studio {
                     }
                     painter.circle_filled(p, r, m.color);
                     // Petit reflet pour donner du volume
-                    painter.circle_filled(p + EVec2::new(-r * 0.3, -r * 0.3), r * 0.35, Color32::from_rgba_unmultiplied(255, 255, 255, 90));
+                    painter.circle_filled(
+                        p + EVec2::new(-r * 0.3, -r * 0.3),
+                        r * 0.35,
+                        Color32::from_rgba_unmultiplied(255, 255, 255, 90),
+                    );
                 }
             }
             if self.vectors && m.kind != Kind::Dust {
@@ -835,7 +1067,13 @@ impl Studio {
             }
             if self.selected == Some(m.id) {
                 painter.circle_stroke(p, r + 7.0 + 2.0 * (t * 4.0).sin(), Stroke::new(1.5, CYAN));
-                painter.text(p + EVec2::new(0.0, -r - 18.0), Align2::CENTER_CENTER, &m.name, FontId::proportional(13.0), TEXT);
+                painter.text(
+                    p + EVec2::new(0.0, -r - 18.0),
+                    Align2::CENTER_CENTER,
+                    &m.name,
+                    FontId::proportional(13.0),
+                    TEXT,
+                );
             }
         }
 
@@ -850,7 +1088,10 @@ impl Studio {
             for (k, seg) in path.windows(2).enumerate() {
                 if k % 2 == 0 {
                     let fade = 1.0 - k as f32 / path.len() as f32;
-                    painter.line_segment([seg[0], seg[1]], Stroke::new(2.0, with_alpha(GOLD, (fade * 230.0) as u8)));
+                    painter.line_segment(
+                        [seg[0], seg[1]],
+                        Stroke::new(2.0, with_alpha(GOLD, (fade * 230.0) as u8)),
+                    );
                 }
             }
             painter.text(
@@ -871,20 +1112,47 @@ impl Studio {
         }
         if let Some(m) = self.mission {
             let title = format!("MISSION · {}", m.title().to_uppercase());
-            let body = banner.map(|(t, c)| (t, c)).unwrap_or((m.goal().to_string(), CYAN));
+            let body = banner.unwrap_or((m.goal().to_string(), CYAN));
             let width = (rect.width() - 80.0).min(640.0);
-            let top = Rect::from_min_size(Pos2::new(rect.center().x - width / 2.0, rect.top() + 16.0), EVec2::new(width, 86.0));
-            painter.rect_filled(top, CornerRadius::same(14), Color32::from_rgba_unmultiplied(14, 16, 34, 230));
-            painter.rect_stroke(top, CornerRadius::same(14), Stroke::new(1.0, body.1), egui::StrokeKind::Inside);
-            painter.text(top.left_top() + EVec2::new(16.0, 12.0), Align2::LEFT_TOP, title, FontId::proportional(13.0), body.1);
+            let top = Rect::from_min_size(
+                Pos2::new(rect.center().x - width / 2.0, rect.top() + 16.0),
+                EVec2::new(width, 86.0),
+            );
+            painter.rect_filled(
+                top,
+                CornerRadius::same(14),
+                Color32::from_rgba_unmultiplied(14, 16, 34, 230),
+            );
+            painter.rect_stroke(
+                top,
+                CornerRadius::same(14),
+                Stroke::new(1.0, body.1),
+                egui::StrokeKind::Inside,
+            );
+            painter.text(
+                top.left_top() + EVec2::new(16.0, 12.0),
+                Align2::LEFT_TOP,
+                title,
+                FontId::proportional(13.0),
+                body.1,
+            );
             let galley = painter.layout(body.0, FontId::proportional(14.0), TEXT, width - 32.0);
             painter.galley(top.left_top() + EVec2::new(16.0, 32.0), galley, TEXT);
             if let Some(a) = &self.attempt {
-                let bar = Rect::from_min_size(top.left_bottom() + EVec2::new(16.0, -10.0), EVec2::new((width - 32.0) * a.progress(), 4.0));
+                let bar = Rect::from_min_size(
+                    top.left_bottom() + EVec2::new(16.0, -10.0),
+                    EVec2::new((width - 32.0) * a.progress(), 4.0),
+                );
                 painter.rect_filled(bar, CornerRadius::same(2), GREEN);
             }
         } else if let Some((msg, color)) = banner {
-            painter.text(rect.center_top() + EVec2::new(0.0, 24.0), Align2::CENTER_TOP, msg, FontId::proportional(15.0), color);
+            painter.text(
+                rect.center_top() + EVec2::new(0.0, 24.0),
+                Align2::CENTER_TOP,
+                msg,
+                FontId::proportional(15.0),
+                color,
+            );
         } else {
             painter.text(
                 rect.center_top() + EVec2::new(0.0, 22.0),
@@ -895,7 +1163,13 @@ impl Studio {
             );
         }
         if self.paused {
-            painter.text(rect.center_bottom() + EVec2::new(0.0, -26.0), Align2::CENTER_BOTTOM, "⏸  EN PAUSE", FontId::proportional(18.0), GOLD);
+            painter.text(
+                rect.center_bottom() + EVec2::new(0.0, -26.0),
+                Align2::CENTER_BOTTOM,
+                "⏸  EN PAUSE",
+                FontId::proportional(18.0),
+                GOLD,
+            );
         }
 
         // --- confettis
@@ -907,8 +1181,15 @@ impl Studio {
             c.life > 0.0
         });
         for c in &self.confetti {
-            let p = Pos2::new(rect.left() + c.pos.x * rect.width(), rect.top() + c.pos.y * rect.height());
-            painter.rect_filled(Rect::from_center_size(p, EVec2::new(6.0, 3.0)), CornerRadius::same(1), with_alpha(c.color, (c.life * 255.0) as u8));
+            let p = Pos2::new(
+                rect.left() + c.pos.x * rect.width(),
+                rect.top() + c.pos.y * rect.height(),
+            );
+            painter.rect_filled(
+                Rect::from_center_size(p, EVec2::new(6.0, 3.0)),
+                CornerRadius::same(1),
+                with_alpha(c.color, (c.life * 255.0) as u8),
+            );
         }
     }
 
@@ -960,7 +1241,13 @@ impl Studio {
     }
 
     /// « Tissu de l'espace-temps » : une grille creusée par les masses.
-    fn draw_grid(&self, painter: &egui::Painter, rect: Rect, to_screen: &dyn Fn(Vec2) -> Pos2, to_world: &dyn Fn(Pos2) -> Vec2) {
+    fn draw_grid(
+        &self,
+        painter: &egui::Painter,
+        rect: Rect,
+        to_screen: &dyn Fn(Vec2) -> Pos2,
+        to_world: &dyn Fn(Pos2) -> Vec2,
+    ) {
         let heavy: Vec<&Body> = self.sim.bodies.iter().filter(|b| b.mass > 1.0).collect();
         let spacing = 34.0;
         let warp = |s: Pos2| -> Pos2 {
@@ -972,8 +1259,9 @@ impl Studio {
                 if dist < 1e-6 {
                     continue;
                 }
-                let pull = (0.25 * b.mass / (dist * dist + 6.0)).min(dist * 0.85 / dist.max(1e-6)) * dist;
-                d = d + r * (pull.min(dist * 0.85) / dist);
+                let pull =
+                    (0.25 * b.mass / (dist * dist + 6.0)).min(dist * 0.85 / dist.max(1e-6)) * dist;
+                d += r * (pull.min(dist * 0.85) / dist);
             }
             to_screen(w + d)
         };
@@ -981,13 +1269,17 @@ impl Studio {
         let stroke = Stroke::new(1.0, color);
         let mut x = rect.left() - (rect.left() % spacing);
         while x <= rect.right() {
-            let pts: Vec<Pos2> = (0..=((rect.height() / 12.0) as i32)).map(|k| warp(Pos2::new(x, rect.top() + k as f32 * 12.0))).collect();
+            let pts: Vec<Pos2> = (0..=((rect.height() / 12.0) as i32))
+                .map(|k| warp(Pos2::new(x, rect.top() + k as f32 * 12.0)))
+                .collect();
             painter.add(Shape::line(pts, stroke));
             x += spacing;
         }
         let mut y = rect.top() - (rect.top() % spacing);
         while y <= rect.bottom() {
-            let pts: Vec<Pos2> = (0..=((rect.width() / 12.0) as i32)).map(|k| warp(Pos2::new(rect.left() + k as f32 * 12.0, y))).collect();
+            let pts: Vec<Pos2> = (0..=((rect.width() / 12.0) as i32))
+                .map(|k| warp(Pos2::new(rect.left() + k as f32 * 12.0, y)))
+                .collect();
             painter.add(Shape::line(pts, stroke));
             y += spacing;
         }
@@ -1031,21 +1323,32 @@ fn style(ctx: &egui::Context) {
     v.widgets.hovered.weak_bg_fill = Color32::from_rgb(36, 40, 80);
     v.widgets.hovered.bg_fill = Color32::from_rgb(36, 40, 80);
     v.widgets.active.weak_bg_fill = Color32::from_rgb(60, 50, 150);
-    for w in [&mut v.widgets.inactive, &mut v.widgets.hovered, &mut v.widgets.active, &mut v.widgets.open] {
+    for w in [
+        &mut v.widgets.inactive,
+        &mut v.widgets.hovered,
+        &mut v.widgets.active,
+        &mut v.widgets.open,
+    ] {
         w.corner_radius = CornerRadius::same(8);
     }
     ctx.set_visuals(v);
     ctx.all_styles_mut(|s| {
         s.spacing.item_spacing = EVec2::new(8.0, 7.0);
         s.spacing.button_padding = EVec2::new(10.0, 6.0);
-        s.text_styles.insert(egui::TextStyle::Body, FontId::proportional(14.5));
-        s.text_styles.insert(egui::TextStyle::Button, FontId::proportional(14.5));
+        s.text_styles
+            .insert(egui::TextStyle::Body, FontId::proportional(14.5));
+        s.text_styles
+            .insert(egui::TextStyle::Button, FontId::proportional(14.5));
     });
 }
 
 fn progress_file() -> Option<std::path::PathBuf> {
     let base = std::env::var_os("APPDATA").or_else(|| std::env::var_os("HOME"))?;
-    Some(std::path::PathBuf::from(base).join("GravityStudio").join("missions.txt"))
+    Some(
+        std::path::PathBuf::from(base)
+            .join("GravityStudio")
+            .join("missions.txt"),
+    )
 }
 
 fn load_progress() -> [bool; 3] {

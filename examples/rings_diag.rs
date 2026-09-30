@@ -8,9 +8,19 @@ fn main() {
         let r = 2.2 + 2.6 * (i as f64 / 200.0);
         let t = i as f64 * 0.7;
         let v = (G * m / r).sqrt();
-        bodies.push(Body::new(Vec2::new(t.cos(), t.sin()) * r, Vec2::new(-t.sin(), t.cos()) * v, 0.0005, Some(0.0), ""));
+        bodies.push(Body::new(
+            Vec2::new(t.cos(), t.sin()) * r,
+            Vec2::new(-t.sin(), t.cos()) * v,
+            0.0005,
+            Some(0.0),
+            "",
+        ));
     }
-    let config = SimulationConfig { dt: 0.01, softening: 0.08, ..Default::default() };
+    let config = SimulationConfig {
+        dt: 0.01,
+        softening: 0.08,
+        ..Default::default()
+    };
     let mut sim = Simulation::new(config, bodies);
     sim.max_history = 0;
     for step in 0..2000 {
@@ -19,8 +29,14 @@ fn main() {
             sim.merge_collisions();
         }
         if step % 400 == 0 {
-            let rmin = sim.bodies[1..].iter().map(|b| b.pos.norm()).fold(f64::MAX, f64::min);
-            println!("pas {step}: {} corps, rayon min {rmin:.2}", sim.bodies.len());
+            let rmin = sim.bodies[1..]
+                .iter()
+                .map(|b| b.pos.norm())
+                .fold(f64::MAX, f64::min);
+            println!(
+                "pas {step}: {} corps, rayon min {rmin:.2}",
+                sim.bodies.len()
+            );
         }
     }
 }
